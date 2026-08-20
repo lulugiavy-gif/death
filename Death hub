@@ -1,0 +1,58 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Workspace = game:GetService("Workspace")
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH 1.0 | PRECISION", 
+    KeySystem = true, 
+    KeySettings = {
+        Title = "DEATH KEY SYSTEM", 
+        Subtitle = "Nhập key để sử dụng script", 
+        Key = "death2026", 
+        SaveKey = true
+    }
+})
+
+local Tab = Window:CreateTab("Canh Sét", 4483363465)
+local count = 0
+local isProcessing = false
+
+Tab:CreateToggle({
+    Name = "Đoán sét (Báo lần 3 - Chuẩn 2s)",
+    CurrentValue = false,
+    Callback = function(v)
+        if v then
+            count = 0
+            Rayfield:Notify({Title = "DEATH", Content = "Hệ thống đang đếm tín hiệu...", Duration = 2})
+            
+            Workspace.DescendantAdded:Connect(function(obj)
+                local n = string.lower(obj.Name)
+                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
+                    
+                    count = count + 1
+                    
+                    -- Lần 1 và 2 bỏ qua, đến lần thứ 3 mới xử lý
+                    if count == 3 and not isProcessing then
+                        isProcessing = true
+                        
+                        -- Chờ đúng thời điểm chuẩn bị sét đánh (2 giây)
+                        task.wait(2) 
+                        
+                        Rayfield:Notify({
+                            Title = "⚡ SÉT THẬT! (2 GIÂY)", 
+                            Content = "Thu hoạch ngay lập tức!", 
+                            Duration = 2.5
+                        })
+                        
+                        -- Reset lại bộ đếm cho đợt sét tiếp theo
+                        task.wait(5)
+                        count = 0
+                        isProcessing = false
+                    end
+                end
+            end)
+        else
+            count = 0
+            isProcessing = false
+        end
+    end
+})
