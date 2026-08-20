@@ -1,0 +1,95 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Workspace = game:GetService("Workspace")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH HUB | CANH SÉT 3 NHỊP", 
+    KeySystem = true, 
+    KeySettings = {
+        Title = "DEATH KEY SYSTEM", 
+        Subtitle = "Nhập key để sử dụng script", 
+        Key = "death2026", 
+        SaveKey = true
+    }
+})
+
+local Tab = Window:CreateTab("Canh Sét", 4483363465)
+local count = 0
+local isRunning = false
+local lastSignalTime = 0
+
+Tab:CreateToggle({
+    Name = "Đoán sét",
+    CurrentValue = false,
+    Callback = function(v)
+        isRunning = v
+        if v then
+            count = 0
+            Rayfield:Notify({Title = "DEATH HUB", Content = "Đã bật chế độ 3 nhịp sét!", Duration = 2})
+            
+            Workspace.DescendantAdded:Connect(function(obj)
+                if not isRunning then return end
+                
+                local n = string.lower(obj.Name)
+                if string.find(n, "lightning") or string.find(n, "thunder") or string.find(n, "storm") then
+                    
+                    local currentTime = tick()
+                    -- Lọc nhiễu giữa các tín hiệu
+                    if currentTime - lastSignalTime >= 0.5 then
+                        lastSignalTime = currentTime
+                        count = count + 1
+                        
+                        if count == 1 then
+                            Rayfield:Notify({Title = "Tín hiệu 1", Content = "Thông báo giả...", Duration = 1})
+                        elseif count == 2 then
+                            Rayfield:Notify({Title = "Tín hiệu 2", Content = "Thông báo giả...", Duration = 1})
+                        elseif count == 3 then
+                            -- Lần 3: Thông báo thật, chờ 2 giây để thu hoạch
+                            Rayfield:Notify({Title = "⚡ Tín hiệu 3 (THẬT)", Content = "Đang tính toán...", Duration = 1})
+                            
+                            task.delay(2, function()
+                                if isRunning then
+                                    Rayfield:Notify({
+                                        Title = "⚡ THU HOẠCH NGAY!", 
+                                        Content = "Sét sắp đánh - Thu hoạch ngay lập tức!", 
+                                        Duration = 3
+                                    })
+                                end
+                            end)
+                            -- Reset để đếm đợt tiếp theo
+                            count = 0
+                        end
+                    end
+                end
+            end)
+        else
+            count = 0
+        end
+    end
+})
+
+-- Nút Hop Server 1 người
+Tab:CreateButton({
+    Name = "🔄 Đổi Server (Tìm phòng ít người)",
+    Callback = function()
+        local servers = {}
+        local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+        local body = HttpService:JSONDecode(req)
+        
+        if body and body.data then
+            for _, s in pairs(body.data) do
+                if type(s) == "table" and s.playing < s.maxPlayers - 1 then
+                    table.insert(servers, s.id)
+                end
+            end
+        end
+        
+        if #servers > 0 then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], Players.LocalPlayer)
+        else
+            Rayfield:Notify({Title = "SERVER HOP", Content = "Không tìm thấy server vắng!", Duration = 2})
+        end
+    end,
+})
