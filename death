@@ -1,0 +1,55 @@
+-- ==========================================================
+-- ⚡ DEATH | ĐOÁN SÉT 2.0 (SHORT VERSION)
+-- ==========================================================
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH | 2.0",
+    LoadingTitle = "Loading DEATH...",
+    KeySystem = true,
+    KeySettings = { Title = "KEY SYSTEM", Key = "death2026", SaveKey = true }
+})
+
+local Main = Window:CreateTab("Canh Sét", 4483363465)
+local isEnabled, lastAlert = false, 0
+local Status = Main:CreateLabel("⏱️ Trạng thái: Đang chờ...")
+
+local function alert()
+    if tick() - lastAlert < 4 then return end
+    lastAlert = tick()
+    Status:Set("⚠️ SÉT SẮP ĐÁNH TRONG 1-2S!")
+    Rayfield:Notify({Title = "DEATH 2.0", Content = "Thu hoạch ngay!", Duration = 2.5})
+    task.delay(2.5, function() if isEnabled then Status:Set("⏱️ Đang canh chừng...") end end)
+end
+
+local function check(obj)
+    local n = string.lower(obj.Name)
+    if (n:find("indicator") or n:find("redcircle") or n:find("pre_strike") or n:find("spawn")) then
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+           or (LocalPlayer.Character.HumanoidRootPart.Position - obj.Position).Magnitude <= 90 then
+            return true
+        end
+    end
+    return false
+end
+
+Main:CreateToggle({
+    Name = "Kích hoạt Đoán sét 2.0",
+    CurrentValue = false,
+    Callback = function(v)
+        isEnabled = v
+        Status:Set(v and "⏱️ Đang canh chừng..." or "⏱️ Đã tắt")
+        if v then
+            task.spawn(function()
+                while isEnabled do
+                    task.wait(0.1)
+                    for _, obj in ipairs(Workspace:GetChildren()) do
+                        if check(obj) then alert() task.wait(2) break end
+                    end
+                end
+            end)
+        end
+    end
+})
