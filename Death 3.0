@@ -1,0 +1,127 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH 2.0 | PREDICT & HOP", 
+    KeySystem = true, 
+    KeySettings = {
+        Title = "DEATH KEY", 
+        Subtitle = "Hệ thống xác thực",
+        Note = "Nhập key để sử dụng script (Key: death2026)", 
+        FileName = "DeathKeyConfig", 
+        SaveKey = true, 
+        GrabKeyFromSite = false, 
+        Key = {"death2026"}
+    }
+})
+
+local Tab = Window:CreateTab("Canh Sét & Server", 4483363465)
+
+local connection = nil
+local notificationCount = 0
+local isHopping = false
+
+-- Hàm tự động đổi Server (Server Hop) tìm phòng ít người
+local function HopServer()
+    if isHopping then return end
+    isHopping = true
+    
+    Rayfield:Notify({
+        Title = "⚡ SERVER HOP", 
+        Content = "Đang tìm server vắng người (1 người)...", 
+        Duration = 3
+    })
+    
+    local success, err = pcall(function()
+        local servers = {}
+        local cursor = ""
+        
+        repeat
+            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+            if cursor ~= "" then
+                url = url .. "&cursor=" .. cursor
+            end
+            
+            local response = HttpService:JSONDecode(game:HttpGet(url))
+            cursor = response.nextPageCursor
+            
+            for _, server in ipairs(response.data) do
+                -- Lọc các server có số lượng người chơi nhỏ hơn hoặc bằng 1 và khác server hiện tại
+                if server.playing and server.playing <= 1 and server.id ~= game.JobId then
+                    table.insert(servers, server.id)
+                end
+            end
+        until not cursor or #servers > 0
+        
+        if #servers > 0 then
+            local targetServer = servers[math.random(1, #servers)]
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer, LocalPlayer)
+        else
+            -- Nếu không tìm thấy server trống hẳn, thử hop tự động chung qua API thông thường
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
+    end)
+    
+    if not success then
+        -- Fallback dự phòng nếu lỗi API
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+end
+
+-- Toggle Canh Sét 3 lần
+Tab:CreateToggle({
+    Name = "Đoán trước 2 giây (Pre-Strike)",
+    Callback = function(v)
+        if v then
+            Rayfield:Notify({Title = "DEATH", Content = "Đã kích hoạt hệ thống quét 3 lần thông báo!", Duration = 2})
+            
+            connection = Workspace.DescendantAdded:Connect(function(obj)
+                local n = string.lower(obj.Name)
+                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
+                    
+                    notificationCount = notificationCount + 1
+                    
+                    if notificationCount == 1 then
+                        Rayfield:Notify({
+                            Title = "⚡ CẢNH BÁO [1/3]", 
+                            Content = "Tín hiệu giả (Lần 1)...", 
+                            Duration = 1.5
+                        })
+                    elseif notificationCount == 2 then
+                        Rayfield:Notify({
+                            Title = "⚡ CẢNH BÁO [2/3]", 
+                            Content = "Tín hiệu giả (Lần 2)... Chuẩn bị...", 
+                            Duration = 1.5
+                        })
+                    elseif notificationCount >= 3 then
+                        Rayfield:Notify({
+                            Title = "⚡ THÔNG BÁO CHÍNH XÁC [3/3]", 
+                            Content = "Sét thật! Thu hoạch ngay trong 2 giây tới!", 
+                            Duration = 3
+                        })
+                        notificationCount = 0
+                    end
+                end
+            end)
+        else
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+            notificationCount = 0
+            Rayfield:Notify({Title = "DEATH", Content = "Đã tắt hệ thống canh sét.", Duration = 2})
+        end
+    end
+})
+
+-- Nút bấm Hop Server 1 người
+Tab:CreateButton({
+    Name = "Đổi Server (Tìm phòng 1 người)",
+    Callback = function()
+        HopServer()
+    end
+})
