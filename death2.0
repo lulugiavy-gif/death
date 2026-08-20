@@ -1,0 +1,37 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH 2.0 | PREDICT", 
+    KeySystem = true, 
+    KeySettings = {Title = "DEATH KEY", Key = "death2026", SaveKey = true}
+})
+
+local Tab = Window:CreateTab("Canh Sét", 4483363465)
+
+Tab:CreateToggle({
+    Name = "Đoán trước 2 giây (Pre-Strike)",
+    Callback = function(v)
+        if v then
+            Rayfield:Notify({Title = "DEATH", Content = "Đang quét tín hiệu mầm sét...", Duration = 2})
+            
+            -- Lắng nghe các vật thể mới được tạo ra trong không trung
+            Workspace.DescendantAdded:Connect(function(obj)
+                -- Lọc các vật thể có tên liên quan đến tia sét hoặc hiệu ứng sớm
+                local n = string.lower(obj.Name)
+                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
+                    
+                    -- Khi phát hiện "mầm" sét, đợi 0.5s rồi báo ngay (để canh đúng 2s trước khi sét đánh)
+                    task.delay(0.5, function()
+                        Rayfield:Notify({
+                            Title = "⚡ CẢNH BÁO SỚM", 
+                            Content = "Sét sẽ đánh sau 2 giây nữa! Thu hoạch ngay!", 
+                            Duration = 2
+                        })
+                    end)
+                end
+            end)
+        end
+    end
+})
