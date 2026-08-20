@@ -1,0 +1,52 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Workspace = game:GetService("Workspace")
+
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH 2.0 | PRECISION", 
+    KeySystem = true, 
+    KeySettings = {Key = "death2026", SaveKey = true}
+})
+
+local Tab = Window:CreateTab("Canh Sét", 4483363465)
+local count = 0
+local isProcessing = false -- Chống spam khi đã tìm thấy lần 3
+
+Tab:CreateToggle({
+    Name = "Đoán sét (Báo lần 3 - Chuẩn 2s)",
+    Callback = function(v)
+        if v then
+            count = 0
+            Rayfield:Notify({Title = "DEATH", Content = "Hệ thống đang đếm tín hiệu...", Duration = 2})
+            
+            Workspace.DescendantAdded:Connect(function(obj)
+                local n = string.lower(obj.Name)
+                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
+                    
+                    count = count + 1
+                    
+                    -- Chỉ xử lý khi đủ 3 lần và chưa có thông báo nào đang chạy
+                    if count == 3 and not isProcessing then
+                        isProcessing = true -- Khóa không cho đếm tiếp
+                        
+                        -- Chờ 2 giây để khớp với thời gian sét đánh
+                        task.wait(2) 
+                        
+                        Rayfield:Notify({
+                            Title = "⚡ ĐÚNG TẦM! (2 GIÂY)", 
+                            Content = "Sét sắp giáng xuống, Thu hoạch NGAY!", 
+                            Duration = 2
+                        })
+                        
+                        -- Reset lại sau 5 giây để đợi đợt sét tiếp theo
+                        task.wait(5)
+                        count = 0
+                        isProcessing = false
+                    end
+                end
+            end)
+        else
+            count = 0
+            isProcessing = false
+        end
+    end
+})
