@@ -1,159 +1,214 @@
+--[==[ DEATH HUB - SECURE VERSION BY HIEU ]==]
+local _isExecutor = (syn and not syn.is_beta) or SecureLua or fluxus or identifyexecutor or Krnl or Tse or Delta or (identifyexecutor ~= nil)
+if not _isExecutor then
+    error("có con cặc")
+end
+
+local _encCode = [[
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
-local LocalPlayer = Players.LocalPlayer
+local PlaceId = game.PlaceId
+local player = Players.LocalPlayer
 
+-- Khởi tạo giao diện Rayfield với Key mới: ilovebuild
 local Window = Rayfield:CreateWindow({
-    Name = "⚡ DEATH 3.0 | PREDICT & HOP", 
-    KeySystem = true, 
+    Name = "⚡ DEATH HUB | SÉT & SERVER",
+    LoadingTitle = "Đang tải DEATH HUB...",
+    LoadingSubtitle = "by Hiếu",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "DeathHubConfig",
+        FileName = "Settings"
+    },
+    KeySystem = true,
     KeySettings = {
-        Title = "DEATH KEY", 
-        Subtitle = "Hệ thống xác thực",
-        Note = "Nhập key để sử dụng script (Key: tự tìm )", 
-        FileName = "DeathKeyConfig", 
-        SaveKey = true, 
-        GrabKeyFromSite = false, 
-        Key = {"deathvip"}
+        Title = "DEATH HUB KEY",
+        Subtitle = "Xác thực bảo mật",
+        Note = "Nhập key để sử dụng script (Key: có con cặc )",
+        FileName = "DeathKey",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"ilovebuild"}
     }
 })
 
-local Tab = Window:CreateTab("Canh Sét & Server", 4483363465)
+local MainTab = Window:CreateTab("Canh Sét", 4483363465)
+local HopTab = Window:CreateTab("Server Hop", 4483363465)
+local SettingTab = Window:CreateTab("Cài đặt", 4483363465)
 
-local connection = nil
-local notificationCount = 0
-local isHopping = false
+local Settings = {
+    LightningWarning = false,
+    AutoCollectLightning = false
+}
+local isWarningRunning = false
 
--- Hàm tự động đổi Server (Server Hop) tìm phòng ít người
-local function HopServer()
-    if isHopping then return end
-    isHopping = true
-    
-    Rayfield:Notify({
-        Title = "⚡ SERVER HOP", 
-        Content = "Đang tìm server vắng người (1 người)...", 
-        Duration = 3
-    })
-    
-    local success, err = pcall(function()
-        local servers = {}
-        local cursor = ""
-        
-        repeat
-            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-            if cursor ~= "" then
-                url = url .. "&cursor=" .. cursor
-            end
-            
-            local response = HttpService:JSONDecode(game:HttpGet(url))
-            cursor = response.nextPageCursor
-            
-            for _, server in ipairs(response.data) do
-                -- Lọc các server có số lượng người chơi nhỏ hơn hoặc bằng 1 và khác server hiện tại
-                if server.playing and server.playing <= 1 and server.id ~= game.JobId then
-                    table.insert(servers, server.id)
-                end
-            end
-        until not cursor or #servers > 0
-        
-        if #servers > 0 then
-            local targetServer = servers[math.random(1, #servers)]
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer, LocalPlayer)
-        else
-            -- Nếu không tìm thấy server trống hẳn, thử hop tự động chung qua API thông thường
-            TeleportService:Teleport(game.PlaceId, LocalPlayer)
-        end
-    end)
-    
-    if not success then
-        -- Fallback dự phòng nếu lỗi API
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
-    end
-end
+-- ==================== TAB MAIN ====================
+MainTab:CreateSection("Tính năng Sét")
 
--- Toggle Canh Sét 3 lần
-Tab:CreateToggle({
-    Name = "Đoán trước 2 giây (Pre-Strike)",
+MainTab:CreateToggle({
+    Name = "Cảnh báo sét (3 nhịp chuẩn xác)",
+    CurrentValue = false,
     Callback = function(v)
-        if v then
-            Rayfield:Notify({Title = "DEATH", Content = "Đã kích hoạt hệ thống quét 3 lần thông báo!", Duration = 2})
-            
-            connection = Workspace.DescendantAdded:Connect(function(obj)
-                local n = string.lower(obj.Name)
-                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
-                    
-                    notificationCount = notificationCount + 1
-                    
-                    if notificationCount == 1 then
-                        Rayfield:Notify({
-                            Title = "⚡ CẢNH BÁO [1/3]", 
-                            Content = "Tín hiệu giả (Lần 1)...", 
-                            Duration = 1.5
-                        })
-                    elseif notificationCount == 2 then
-                        Rayfield:Notify({
-                            Title = "⚡ CẢNH BÁO [2/3]", 
-                            Content = "Tín hiệu giả (Lần 2)... Chuẩn bị...", 
-                            Duration = 1.5
-                        })
-                    elseif notificationCount >= 3 then
-                        Rayfield:Notify({
-                            Title = "⚡ THÔNG BÁO CHÍNH XÁC [3/3]", 
-                            Content = "Sét thật! Thu hoạch ngay trong 2 giây tới!", 
-                            Duration = 3
-                        })
-                        notificationCount = 0
+        Settings.LightningWarning = v
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "Nhặt trước sét (TP tự động siêu tốc)",
+    CurrentValue = false,
+    Callback = function(v)
+        Settings.AutoCollectLightning = v
+    end
+})
+
+-- ==================== TAB SERVER HOP ====================
+HopTab:CreateSection("Quản lý Server")
+
+HopTab:CreateButton({
+    Name = "Hop VIP Server (Tìm phòng vắng)",
+    Callback = function()
+        Rayfield:Notify({Title = "Server Hop", Content = "Đang tìm server vắng nhất...", Duration = 2})
+        local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+
+        if success and result and result.data then
+            local targetServer = nil
+            for _, server in pairs(result.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    if server.playing <= 2 then
+                        targetServer = server.id
+                        break
                     end
                 end
-            end)
-        else
-            if connection then
-                connection:Disconnect()
-                connection = nil
             end
-            notificationCount = 0
-            Rayfield:Notify({Title = "DEATH", Content = "Đã tắt hệ thống canh sét.", Duration = 2})
+            if not targetServer then
+                for _, server in pairs(result.data) do
+                    if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                        targetServer = server.id
+                        break
+                    end
+                end
+            end
+            if targetServer then
+                Rayfield:Notify({Title = "Server Hop", Content = "Đang chuyển đến server vắng...", Duration = 3})
+                TeleportService:TeleportToPlaceInstance(PlaceId, targetServer, player)
+            else
+                Rayfield:Notify({Title = "Server Hop", Content = "Không tìm thấy server trống!", Duration = 3})
+            end
         end
     end
 })
 
--- Nút bấm Hop Server 1 người
-Tab:CreateButton({
-    Name = "Đổi Server (Tìm phòng 1 người)",
-    Callback = function()
-        HopServer()
-    end
-})
+-- ==================== TAB SETTING ====================
+SettingTab:CreateSection("Hệ thống")
 
--- Nút bấm Fix Lag (Tối ưu FPS) mới thêm vào
-Tab:CreateButton({
-    Name = "⚡ Fix Lag (Tối ưu FPS)",
+SettingTab:CreateButton({
+    Name = "Fix Lag (Tối ưu FPS)",
     Callback = function()
-        -- Giảm đồ họa Lighting nặng nề
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
         for _, v in pairs(Lighting:GetChildren()) do
             if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
-                v.Destroy(v)
+                v:Destroy()
             end
         end
-        
-        -- Tắt các hiệu ứng chi tiết vật thể trong game để tăng FPS
         for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
+            if v:IsA("Part") or v:IsA("MeshPart") then
                 v.Material = Enum.Material.SmoothPlastic
                 v.Reflectance = 0
-            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
                 v.Enabled = false
             end
         end
-        
-        Rayfield:Notify({
-            Title = "⚡ FIX LAG THÀNH CÔNG", 
-            Content = "Đã tối ưu hóa đồ họa và tăng FPS cho máy!", 
-            Duration = 3
-        })
+        Rayfield:Notify({Title = "⚡ FIX LAG", Content = "Đã tối ưu hóa đồ họa!", Duration = 3})
     end
 })
+
+-- ==================== LOGIC CANH SÉT & NHẶT CHUẨN XÁC ====================
+local function isMyFarm(targetPart)
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
+    
+    local current = targetPart
+    while current and current ~= Workspace do
+        local parentName = current.Name:lower()
+        if parentName:find(player.Name:lower()) then return true end
+        if current:FindFirstChild("Owner") then
+            local ownerVal = current.Owner.Value
+            if ownerVal == player or (typeof(ownerVal) == "string" and ownerVal:lower() == player.Name:lower()) then
+                return true
+            end
+        end
+        current = current.Parent
+    end
+    
+    if targetPart:IsA("BasePart") then
+        local distance = (targetPart.Position - character.HumanoidRootPart.Position).Magnitude
+        if distance <= 50 then return true end
+    end
+    
+    return false
+end
+
+local function checkAndCollectLightning(obj)
+    if not Settings.AutoCollectLightning then return end
+    local name = obj.Name:lower()
+    if name:find("lightning") or name:find("thunder") or name:find("storm") or name:find("set") or name:find("sét") or name:find("flash") then
+        local targetPart = obj:IsA("BasePart") and obj or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
+        if targetPart and isMyFarm(targetPart) then
+            task.spawn(function()
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    char.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                    for _, v in pairs(Workspace:GetDescendants()) do
+                        if v:IsA("ProximityPrompt") then
+                            local p = v.Parent
+                            if p and (p == targetPart or p.Parent == targetPart or (p:IsA("BasePart") and (p.Position - targetPart.Position).Magnitude < 12)) then
+                                pcall(function()
+                                    v.HoldDuration = 0
+                                    v.MaxActivationDistance = 9999
+                                    fireproximityprompt(v)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end
+
+Workspace.DescendantAdded:Connect(function(descendant)
+    checkAndCollectLightning(descendant)
+    if Settings.LightningWarning and not isWarningRunning then
+        local name = descendant.Name:lower()
+        if name:find("plant") or name:find("crop") or name:find("lightning") or name:find("thunder") or name:find("set") or name:find("sét") then
+            isWarningRunning = true
+            task.spawn(function()
+                Rayfield:Notify({Title = "⚡ CẢNH BÁO SÉT", Content = "Nhịp 1: Chuẩn bị...", Duration = 0.9})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚡ CẢNH BÁO SÉT", Content = "Nhịp 2: Sắp đánh...", Duration = 0.9})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚡ CẢNH BÁO SÉT", Content = "Nhịp 3: Sắp tới...", Duration = 0.9})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚡ SÉT ĐẾN RỒI!", Content = "Thu hoạch ngay lập tức!", Duration = 2})
+                task.wait(2)
+                isWarningRunning = false
+            end)
+        end
+    end
+end)
+
+Rayfield:Notify({Title = "DEATH HUB", Content = "Khởi chạy thành công (Key: ilovebuild)!", Duration = 3})
+]]
+
+local _fn, _err = loadstring(_encCode)
+if _fn then
+    pcall(_fn)
+else
+    warn("Error loading hub: " .. tostring(_err))
+end
