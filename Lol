@@ -6,15 +6,15 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 local Window = Rayfield:CreateWindow({
-    Name = "⚡ SCRIPT CANH SÉT | VIP",
+    Name = "⚡ DEATH HUB | VIP",
     KeySystem = true,
     KeySettings = {
-        Title = "VIP KEY SYSTEM",
-        Subtitle = "Bảo mật",
-        FileName = "MyScriptConfig",
+        Title = "DEATH HUB KEY",
+        Subtitle = "Xác thực truy cập",
+        FileName = "DeathHubConfig",
         SaveKey = true,
         GrabKeyFromSite = false,
-        Key = {"deathvip"} -- Key bảo mật của bạn
+        Key = {"deathvip"}
     }
 })
 
@@ -28,7 +28,7 @@ Tab:CreateToggle({
     Callback = function(v)
         isRunning = v
         if v then
-            Rayfield:Notify({Title = "ĐÃ BẬT", Content = "Hãy trồng cây để bắt đầu...", Duration = 1.5})
+            Rayfield:Notify({Title = "DEATH HUB", Content = "Đã bật canh sét!", Duration = 1.5})
             
             local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
             
@@ -49,20 +49,24 @@ Tab:CreateToggle({
                                     lastPlantTime = currentTime
                                     
                                     task.spawn(function()
-                                        -- Nhịp 1
-                                        task.wait(1.5) 
+                                        -- Nhịp 1: cách 2 giây
+                                        task.wait(2.0) 
                                         if not isRunning then return end
                                         Rayfield:Notify({Title = "Đếm nhịp", Content = "Nhịp 1/3", Duration = 0.5})
                                         
-                                        -- Nhịp 2
-                                        task.wait(1.5) 
+                                        -- Nhịp 2: cách 2 giây
+                                        task.wait(2.0) 
                                         if not isRunning then return end
                                         Rayfield:Notify({Title = "Đếm nhịp", Content = "Nhịp 2/3", Duration = 0.5})
                                         
-                                        -- Nhịp 3 (Thu hoạch)
-                                        task.wait(1.5) 
+                                        -- Nhịp 3: cách 3 giây (Thu hoạch)
+                                        task.wait(3.0) 
                                         if not isRunning then return end
-                                        Rayfield:Notify({Title = "⚡ THU HOẠCH NGAY!", Content = "Nhịp 3/3 - Bấm ngay!", Duration = 2.0})
+                                        Rayfield:Notify({
+                                            Title = "⚡ THU HOẠCH NGAY!", 
+                                            Content = "Đúng nhịp 3!", 
+                                            Duration = 2.0
+                                        })
                                     end)
                                 end
                             end
@@ -77,7 +81,7 @@ Tab:CreateToggle({
 Tab:CreateButton({
     Name = "🔄 Đổi Server Vắng (Hop 1 người)",
     Callback = function()
-        Rayfield:Notify({Title = "SERVER HOP", Content = "Đang tìm phòng vắng...", Duration = 1.5})
+        Rayfield:Notify({Title = "DEATH HUB", Content = "Đang tìm phòng vắng...", Duration = 1.5})
         local servers = {}
         local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
         local body = HttpService:JSONDecode(req)
@@ -85,7 +89,6 @@ Tab:CreateButton({
         if body and body.data then
             for _, s in pairs(body.data) do
                 if type(s) == "table" and s.playing and s.maxPlayers and s.id then
-                    -- Tìm server có ít người nhất
                     if s.playing < 2 then 
                         table.insert(servers, s.id)
                     end
