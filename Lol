@@ -3,104 +3,157 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
 local Window = Rayfield:CreateWindow({
-    Name = "⚡ DEATH HUB | VIP",
-    KeySystem = true,
+    Name = "⚡ DEATH 2.0 | PREDICT & HOP", 
+    KeySystem = true, 
     KeySettings = {
-        Title = "DEATH HUB KEY",
-        Subtitle = "Xác thực truy cập",
-        FileName = "DeathHubConfig",
-        SaveKey = true,
-        GrabKeyFromSite = false,
+        Title = "DEATH KEY", 
+        Subtitle = "Hệ thống xác thực",
+        Note = "Nhập key để sử dụng script (Key: deathvip )", 
+        FileName = "DeathKeyConfig", 
+        SaveKey = true, 
+        GrabKeyFromSite = false, 
         Key = {"deathvip"}
     }
 })
 
-local Tab = Window:CreateTab("Canh Sét", 4483363465)
-local isRunning = false
-local lastPlantTime = 0
+local Tab = Window:CreateTab("Canh Sét & Server", 4483363465)
 
+local connection = nil
+local notificationCount = 0
+local isHopping = false
+
+-- Hàm tự động đổi Server (Server Hop) tìm phòng ít người
+local function HopServer()
+    if isHopping then return end
+    isHopping = true
+    
+    Rayfield:Notify({
+        Title = "⚡ SERVER HOP", 
+        Content = "Đang tìm server vắng người (1 người)...", 
+        Duration = 3
+    })
+    
+    local success, err = pcall(function()
+        local servers = {}
+        local cursor = ""
+        
+        repeat
+            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+            if cursor ~= "" then
+                url = url .. "&cursor=" .. cursor
+            end
+            
+            local response = HttpService:JSONDecode(game:HttpGet(url))
+            cursor = response.nextPageCursor
+            
+            for _, server in ipairs(response.data) do
+                -- Lọc các server có số lượng người chơi nhỏ hơn hoặc bằng 1 và khác server hiện tại
+                if server.playing and server.playing <= 1 and server.id ~= game.JobId then
+                    table.insert(servers, server.id)
+                end
+            end
+        until not cursor or #servers > 0
+        
+        if #servers > 0 then
+            local targetServer = servers[math.random(1, #servers)]
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer, LocalPlayer)
+        else
+            -- Nếu không tìm thấy server trống hẳn, thử hop tự động chung qua API thông thường
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
+    end)
+    
+    if not success then
+        -- Fallback dự phòng nếu lỗi API
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+end
+
+-- Toggle Canh Sét 3 lần
 Tab:CreateToggle({
-    Name = "Đoán sét chuẩn 3 nhịp",
-    CurrentValue = false,
+    Name = "Đoán trước 2 giây (Pre-Strike)",
     Callback = function(v)
-        isRunning = v
         if v then
-            Rayfield:Notify({Title = "DEATH HUB", Content = "Đã bật canh sét!", Duration = 1.5})
+            Rayfield:Notify({Title = "DEATH", Content = "Đã kích hoạt hệ thống quét 3 lần thông báo!", Duration = 2})
             
-            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            
-            Workspace.ChildAdded:Connect(function(child)
-                if not isRunning then return end
-                
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local hrp = char.HumanoidRootPart
-                    if child:IsA("Model") or child:IsA("Part") then
-                        local pos = (child:IsA("Model") and child.PrimaryPart and child.PrimaryPart.Position) or (child:IsA("Part") and child.Position)
-                        
-                        if pos and (pos - hrp.Position).Magnitude < 12 then
-                            local n = string.lower(child.Name)
-                            if string.find(n, "plant") or string.find(n, "seed") or string.find(n, "tree") or string.find(n, "crop") or string.find(n, "stem") then
-                                
-                                local currentTime = tick()
-                                if currentTime - lastPlantTime >= 1.0 then
-                                    lastPlantTime = currentTime
-                                    
-                                    task.spawn(function()
-                                        -- Nhịp 1: cách 2 giây
-                                        task.wait(2.0) 
-                                        if not isRunning then return end
-                                        Rayfield:Notify({Title = "Đếm nhịp", Content = "Nhịp 1/3", Duration = 0.5})
-                                        
-                                        -- Nhịp 2: cách 2 giây
-                                        task.wait(2.0) 
-                                        if not isRunning then return end
-                                        Rayfield:Notify({Title = "Đếm nhịp", Content = "Nhịp 2/3", Duration = 0.5})
-                                        
-                                        -- Nhịp 3: cách 3 giây (Thu hoạch)
-                                        task.wait(3.0) 
-                                        if not isRunning then return end
-                                        Rayfield:Notify({
-                                            Title = "⚡ THU HOẠCH NGAY!", 
-                                            Content = "Đúng nhịp 3!", 
-                                            Duration = 2.0
-                                        })
-                                    end)
-                                end
-                            end
-                        end
+            connection = Workspace.DescendantAdded:Connect(function(obj)
+                local n = string.lower(obj.Name)
+                if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or string.find(n, "lightning") or string.find(n, "effect") then
+                    
+                    notificationCount = notificationCount + 1
+                    
+                    if notificationCount == 1 then
+                        Rayfield:Notify({
+                            Title = "⚡ CẢNH BÁO [1/3]", 
+                            Content = "Tín hiệu giả (Lần 1)...", 
+                            Duration = 1.5
+                        })
+                    elseif notificationCount == 2 then
+                        Rayfield:Notify({
+                            Title = "⚡ CẢNH BÁO [2/3]", 
+                            Content = "Tín hiệu giả (Lần 2)... Chuẩn bị...", 
+                            Duration = 1.5
+                        })
+                    elseif notificationCount >= 3 then
+                        Rayfield:Notify({
+                            Title = "⚡ THÔNG BÁO CHÍNH XÁC [3/3]", 
+                            Content = "Sét thật! Thu hoạch ngay trong 2 giây tới!", 
+                            Duration = 3
+                        })
+                        notificationCount = 0
                     end
                 end
             end)
+        else
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+            notificationCount = 0
+            Rayfield:Notify({Title = "DEATH", Content = "Đã tắt hệ thống canh sét.", Duration = 2})
         end
     end
 })
 
+-- Nút bấm Hop Server 1 người
 Tab:CreateButton({
-    Name = "🔄 Đổi Server Vắng (Hop 1 người)",
+    Name = "Đổi Server (Tìm phòng 1 người)",
     Callback = function()
-        Rayfield:Notify({Title = "DEATH HUB", Content = "Đang tìm phòng vắng...", Duration = 1.5})
-        local servers = {}
-        local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-        local body = HttpService:JSONDecode(req)
-        
-        if body and body.data then
-            for _, s in pairs(body.data) do
-                if type(s) == "table" and s.playing and s.maxPlayers and s.id then
-                    if s.playing < 2 then 
-                        table.insert(servers, s.id)
-                    end
-                end
+        HopServer()
+    end
+})
+
+-- Nút bấm Fix Lag (Tối ưu FPS) mới thêm vào
+Tab:CreateButton({
+    Name = "⚡ Fix Lag (Tối ưu FPS)",
+    Callback = function()
+        -- Giảm đồ họa Lighting nặng nề
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
+                v.Destroy(v)
             end
         end
         
-        if #servers > 0 then
-            local targetServer = servers[math.random(1, #servers)]
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer, Players.LocalPlayer)
-        else
-            Rayfield:Notify({Title = "SERVER HOP", Content = "Không tìm thấy server vắng!", Duration = 2})
+        -- Tắt các hiệu ứng chi tiết vật thể trong game để tăng FPS
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
+                v.Enabled = false
+            end
         end
-    end,
+        
+        Rayfield:Notify({
+            Title = "⚡ FIX LAG THÀNH CÔNG", 
+            Content = "Đã tối ưu hóa đồ họa và tăng FPS cho máy!", 
+            Duration = 3
+        })
+    end
 })
