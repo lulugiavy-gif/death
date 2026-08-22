@@ -1,528 +1,171 @@
 --[[
     ================================================================================
-    Script: Death x Vỹ - Cảnh Báo Sét (Rayfield Style)
+    Script: Death x Vỹ - Cảnh Báo Sét, Server Hop & Fix Lag (Rayfield UI)
     Game: Greedy Garden / Grow a Garden (Roblox)
     Key: death-vỹ
     ================================================================================
 ]]
 
--- Services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local HttpService = game:GetService("HttpService")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local TeleportService = game:GetService("TeleportService")
-local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local PlaceId = game.PlaceId
+local player = Players.LocalPlayer
 
-local LocalPlayer = Players.LocalPlayer
-local CoreGui = gethui and gethui() or game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+-- Khởi tạo giao diện Rayfield với Key System
+local Window = Rayfield:CreateWindow({
+    Name = "⚡ DEATH x VỸ HUB | SÉT & FIX LAG",
+    LoadingTitle = "Đang tải DEATH x VỸ HUB...",
+    LoadingSubtitle = "by Hiếu",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "DeathVyHubConfig",
+        FileName = "Settings"
+    },
+    KeySystem = true,
+    KeySettings = {
+        Title = "DEATH x VỸ HUB KEY",
+        Subtitle = "Xác thực bảo mật",
+        Note = "Nhập key để sử dụng script (Key: death-vỹ)",
+        FileName = "DeathVyKey",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"death-vỹ"}
+    }
+})
 
--- Cleanup previous instances
-if CoreGui:FindFirstChild("RayfieldNotification") then CoreGui.RayfieldNotification:Destroy() end
-if CoreGui:FindFirstChild("RayfieldMain") then CoreGui.RayfieldMain:Destroy() end
-if CoreGui:FindFirstChild("RayfieldKeySystem") then CoreGui.RayfieldKeySystem:Destroy() end
+local MainTab = Window:CreateTab("Canh Sét", 4483363465)
+local HopTab = Window:CreateTab("Server Hop", 4483363465)
+local SettingTab = Window:CreateTab("Cài đặt & Fix Lag", 4483363465)
 
---------------------------------------------------------------------------------
--- STATE VARIABLES
---------------------------------------------------------------------------------
-local IsMonitoring = false
-local IsVietnamese = true
-local CorrectKey = "death-vỹ"
-local MonitoringConnection = nil
+local Settings = {
+    LightningWarning = false
+}
+local isWarningRunning = false
 
---------------------------------------------------------------------------------
--- NOTIFICATION SYSTEM
---------------------------------------------------------------------------------
-local NotiGui = Instance.new("ScreenGui")
-NotiGui.Name = "RayfieldNotification"
-NotiGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-NotiGui.ResetOnSpawn = false
-NotiGui.Parent = CoreGui
+-- ==================== TAB MAIN ====================
+MainTab:CreateSection("Tính năng Sét")
 
-local NotiContainer = Instance.new("Frame")
-NotiContainer.Name = "NotiContainer"
-NotiContainer.AnchorPoint = Vector2.new(1, 1)
-NotiContainer.Position = UDim2.new(1, -15, 1, -15)
-NotiContainer.Size = UDim2.new(0, 320, 1, -20)
-NotiContainer.BackgroundTransparency = 1
-NotiContainer.Parent = NotiGui
-
-local NotiLayout = Instance.new("UIListLayout")
-NotiLayout.SortOrder = Enum.SortOrder.LayoutOrder
-NotiLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotiLayout.Padding = UDim.new(0, 8)
-NotiLayout.Parent = NotiContainer
-
-local function AddNotify(titleText, descText, duration)
-    duration = duration or 3
-
-    local NotiFrame = Instance.new("Frame")
-    NotiFrame.Size = UDim2.new(1, 0, 0, 0)
-    NotiFrame.AutomaticSize = Enum.AutomaticSize.Y
-    NotiFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-    NotiFrame.Parent = NotiContainer
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 8)
-    Corner.Parent = NotiFrame
-
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Thickness = 1
-    Stroke.Color = Color3.fromRGB(45, 45, 55)
-    Stroke.Parent = NotiFrame
-
-    local Padding = Instance.new("UIPadding")
-    Padding.PaddingTop = UDim.new(0, 12)
-    Padding.PaddingBottom = UDim.new(0, 12)
-    Padding.PaddingLeft = UDim.new(0, 14)
-    Padding.PaddingRight = UDim.new(0, 14)
-    Padding.Parent = NotiFrame
-
-    local Layout = Instance.new("UIListLayout")
-    Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 4)
-    Layout.Parent = NotiFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 18)
-    Title.BackgroundTransparency = 1
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 13
-    Title.TextColor3 = Color3.fromRGB(255, 100, 100)
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.Text = titleText
-    Title.Parent = NotiFrame
-
-    local Desc = Instance.new("TextLabel")
-    Desc.Size = UDim2.new(1, 0, 0, 0)
-    Desc.AutomaticSize = Enum.AutomaticSize.Y
-    Desc.BackgroundTransparency = 1
-    Desc.Font = Enum.Font.Gotham
-    Desc.TextSize = 12
-    Desc.TextColor3 = Color3.fromRGB(180, 180, 190)
-    Desc.TextWrapped = true
-    Desc.TextXAlignment = Enum.TextXAlignment.Left
-    Desc.Text = descText
-    Desc.Parent = NotiFrame
-
-    task.delay(duration, function()
-        if NotiFrame and NotiFrame.Parent then
-            local t = TweenService:Create(NotiFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
-            t:Play()
-            t.Completed:Connect(function()
-                NotiFrame:Destroy()
-            end)
-        end
-    end)
-end
-
---------------------------------------------------------------------------------
--- UTILITIES
---------------------------------------------------------------------------------
-local function MakeDraggable(gui)
-    local dragging, dragInput, dragStart, startPos
-    gui.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = gui.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    gui.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-end
-
---------------------------------------------------------------------------------
--- MAIN SCRIPT (RAYFIELD THEME)
---------------------------------------------------------------------------------
-local function LaunchMainScript()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "RayfieldMain"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.DisplayOrder = 99999
-    ScreenGui.Parent = CoreGui
-
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 520, 0, 340)
-    MainFrame.Position = UDim2.new(0.5, -260, 0.5, -170)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-    MainFrame.Parent = ScreenGui
-
-    local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 8)
-    MainCorner.Parent = MainFrame
-
-    local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Color3.fromRGB(45, 45, 55)
-    MainStroke.Parent = MainFrame
-    MakeDraggable(MainFrame)
-
-    -- Topbar
-    local Topbar = Instance.new("Frame")
-    Topbar.Size = UDim2.new(1, 0, 0, 40)
-    Topbar.BackgroundTransparency = 1
-    Topbar.Parent = MainFrame
-
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(0, 300, 1, 0)
-    TitleLabel.Position = UDim2.new(0, 15, 0, 0)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.TextSize = 14
-    TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TitleLabel.Text = "Death x Vỹ Hub  <font color='#888899'>|  Lightning Alert</font>"
-    TitleLabel.RichText = true
-    TitleLabel.Parent = Topbar
-
-    -- Sidebar (Tabs)
-    local Sidebar = Instance.new("ScrollingFrame")
-    Sidebar.Size = UDim2.new(0, 130, 1, -45)
-    Sidebar.Position = UDim2.new(0, 8, 0, 42)
-    Sidebar.BackgroundTransparency = 1
-    Sidebar.ScrollBarThickness = 2
-    Sidebar.Parent = MainFrame
-
-    local SidebarLayout = Instance.new("UIListLayout")
-    SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    SidebarLayout.Padding = UDim.new(0, 4)
-    SidebarLayout.Parent = Sidebar
-
-    SidebarLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        Sidebar.CanvasSize = UDim2.new(0, 0, 0, SidebarLayout.AbsoluteContentSize.Y + 10)
-    end)
-
-    -- Container for Pages
-    local ContentContainer = Instance.new("Frame")
-    ContentContainer.Size = UDim2.new(1, -150, 1, -50)
-    ContentContainer.Position = UDim2.new(0, 145, 0, 45)
-    ContentContainer.BackgroundTransparency = 1
-    ContentContainer.Parent = MainFrame
-
-    local Pages = {}
-    local TabButtons = {}
-
-    local function CreateTab(name, id)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 32)
-        btn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-        btn.BackgroundTransparency = (id == "Main" and 0 or 1)
-        btn.AutoButtonColor = false
-        btn.Text = ""
-        btn.Parent = Sidebar
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 6)
-        corner.Parent = btn
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -12, 1, 0)
-        label.Position = UDim2.new(0, 12, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamMedium
-        label.TextSize = 12
-        label.TextColor3 = (id == "Main" and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 160))
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Text = name
-        label.Parent = btn
-
-        local page = Instance.new("ScrollingFrame")
-        page.Size = UDim2.new(1, 0, 1, 0)
-        page.BackgroundTransparency = 1
-        page.ScrollBarThickness = 3
-        page.Visible = (id == "Main")
-        page.Parent = ContentContainer
-
-        local pageLayout = Instance.new("UIListLayout")
-        pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        pageLayout.Padding = UDim.new(0, 6)
-        pageLayout.Parent = page
-
-        local pagePadding = Instance.new("UIPadding")
-        pagePadding.PaddingRight = UDim.new(0, 8)
-        pagePadding.Parent = page
-
-        pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 10)
-        end)
-
-        btn.MouseButton1Click:Connect(function()
-            for k, p in pairs(Pages) do p.Visible = (k == id) end
-            for k, b in pairs(TabButtons) do
-                b.Button.BackgroundTransparency = (k == id and 0 or 1)
-                b.Label.TextColor3 = (k == id and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 160))
-            end
-        end)
-
-        Pages[id] = page
-        TabButtons[id] = { Button = btn, Label = label }
-        return page
+MainTab:CreateToggle({
+    Name = "Cảnh báo sét (3 nhịp)",
+    CurrentValue = false,
+    Callback = function(v)
+        Settings.LightningWarning = v
     end
+})
 
-    local MainTab = CreateTab("Trang Chủ", "Main")
-    local InfoTab = CreateTab("Thông Tin", "Info")
+-- ==================== TAB SERVER HOP ====================
+HopTab:CreateSection("Quản lý Server")
 
-    -- Rayfield Style Toggle Element
-    local function CreateToggle(parent, text, callback)
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 38)
-        frame.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-        frame.Parent = parent
+HopTab:CreateButton({
+    Name = "Hop VIP Server (Tìm phòng vắng)",
+    Callback = function()
+        Rayfield:Notify({Title = "Server Hop", Content = "Đang tìm server vắng nhất...", Duration = 2})
+        local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
 
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 6)
-        corner.Parent = frame
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -55, 1, 0)
-        label.Position = UDim2.new(0, 12, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamMedium
-        label.TextSize = 12
-        label.TextColor3 = Color3.fromRGB(200, 200, 210)
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Text = text
-        label.Parent = frame
-
-        local toggleBox = Instance.new("Frame")
-        toggleBox.Size = UDim2.new(0, 20, 0, 20)
-        toggleBox.AnchorPoint = Vector2.new(1, 0.5)
-        toggleBox.Position = UDim2.new(1, -12, 0.5, 0)
-        toggleBox.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-        toggleBox.Parent = frame
-
-        local tCorner = Instance.new("UICorner")
-        tCorner.CornerRadius = UDim.new(0, 4)
-        tCorner.Parent = toggleBox
-
-        local tStroke = Instance.new("UIStroke")
-        tStroke.Color = Color3.fromRGB(60, 60, 70)
-        tStroke.Parent = toggleBox
-
-        local active = false
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 1, 0)
-        btn.BackgroundTransparency = 1
-        btn.Text = ""
-        btn.Parent = frame
-
-        btn.MouseButton1Click:Connect(function()
-            active = not active
-            TweenService:Create(toggleBox, TweenInfo.new(0.15), {
-                BackgroundColor3 = active and Color3.fromRGB(100, 100, 255) or Color3.fromRGB(35, 35, 42)
-            }):Play()
-            callback(active)
-        end)
-    end
-
-    -- Rayfield Style Button Element
-    local function CreateButton(parent, text, callback)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 36)
-        btn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-        btn.AutoButtonColor = false
-        btn.Text = ""
-        btn.Parent = parent
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 6)
-        corner.Parent = btn
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -12, 1, 0)
-        label.Position = UDim2.new(0, 12, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamMedium
-        label.TextSize = 12
-        label.TextColor3 = Color3.fromRGB(200, 200, 210)
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Text = text
-        label.Parent = btn
-
-        btn.MouseButton1Click:Connect(callback)
-    end
-
-    -- Elements in Main Tab
-    local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(1, 0, 0, 24)
-    StatusLabel.BackgroundTransparency = 1
-    StatusLabel.Font = Enum.Font.GothamBold
-    StatusLabel.TextSize = 12
-    StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
-    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    StatusLabel.Text = "Trạng thái: Đang tắt"
-    StatusLabel.Parent = MainTab
-
-    CreateToggle(MainTab, "Bật Cảnh Báo Sét Sớm", function(state)
-        IsMonitoring = state
-        if IsMonitoring then
-            StatusLabel.Text = "Trạng thái: Đang canh chừng..."
-            StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            AddNotify("Thành công", "Đã bật hệ thống phát hiện sét!", 3)
-            
-            if MonitoringConnection then MonitoringConnection:Disconnect() end
-            MonitoringConnection = Workspace.DescendantAdded:Connect(function(obj)
-                if not IsMonitoring then return end
-                local name = string.lower(obj.Name)
-                if string.find(name, "lightning") or string.find(name, "strike") or string.find(name, "thunder") then
-                    local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        local pos = obj:IsA("BasePart") and obj.Position or char.PrimaryPart.Position
-                        if (pos - char.PrimaryPart.Position).Magnitude <= 120 then
-                            AddNotify("⚡ BÁO ĐỘNG ĐỎ!", "Sét sắp đánh gần bạn, thu hoạch ngay!", 5)
-                        end
-                    end
-                end
-            end)
-        else
-            StatusLabel.Text = "Trạng thái: Đang tắt"
-            StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
-            AddNotify("Thông báo", "Đã dừng hệ thống quét.", 3)
-            if MonitoringConnection then MonitoringConnection:Disconnect() end
-        end
-    end)
-
-    CreateButton(MainTab, "⚡ Vào Server 1 Người (Hop Server)", function()
-        AddNotify("Đang tìm", "Đang tìm máy chủ ít người...", 3)
-        task.spawn(function()
-            local success, res = pcall(function()
-                return game:HttpGet("https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?sortOrder=Asc&limit=100")
-            end)
-            if success and res then
-                local data = HttpService:JSONDecode(res)
-                for _, s in ipairs(data.data) do
-                    if s.playing == 1 and s.id ~= game.JobId then
-                        TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
-                        return
+        if success and result and result.data then
+            local targetServer = nil
+            for _, server in pairs(result.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    if server.playing <= 2 then
+                        targetServer = server.id
+                        break
                     end
                 end
             end
-            AddNotify("Thất bại", "Không tìm thấy server phù hợp!", 3)
+            if not targetServer then
+                for _, server in pairs(result.data) do
+                    if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                        targetServer = server.id
+                        break
+                    end
+                end
+            end
+            if targetServer then
+                Rayfield:Notify({Title = "Server Hop", Content = "Đang chuyển đến server vắng...", Duration = 3})
+                TeleportService:TeleportToPlaceInstance(PlaceId, targetServer, player)
+            else
+                Rayfield:Notify({Title = "Server Hop", Content = "Không tìm thấy server trống!", Duration = 3})
+            end
+        end
+    end
+})
+
+-- ==================== TAB SETTING & FIX LAG ====================
+SettingTab:CreateSection("Tối Ưu Hóa & Đồ Họa")
+
+SettingTab:CreateButton({
+    Name = "⚡ Fix Lag Toàn Diện (Tối ưu FPS)",
+    Callback = function()
+        -- Tắt hiệu ứng ánh sáng nặng
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 2
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
+                v:Destroy()
+            end
+        end
+
+        -- Giảm tải vật liệu và hiệu ứng map
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("Part") or v:IsA("MeshPart") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
+                v.Enabled = false
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            end
+        end
+
+        -- Tắt hiển thị bóng của Terrain
+        Workspace.Terrain.WaterWaveSize = 0
+        Workspace.Terrain.WaterWaveSpeed = 0
+        Workspace.Terrain.WaterReflectance = 0
+        Workspace.Terrain.WaterTransparency = 1
+
+        Rayfield:Notify({Title = "⚡ FIX LAG", Content = "Đã dọn dẹp và tối ưu FPS thành công!", Duration = 3})
+    end
+})
+
+SettingTab:CreateButton({
+    Name = "🌙 Đổi Đồ Họa Đen Trắng / Tối Giản",
+    Callback = function()
+        pcall(function()
+            for _, v in pairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Color = Color3.fromRGB(240, 240, 240)
+                end
+            end
         end)
-    end)
+        Rayfield:Notify({Title = "Giao diện tối giản", Content = "Đã chuyển đổi màu sắc giảm nhiệt máy!", Duration = 3})
+    end
+})
 
-    -- Elements in Info Tab
-    local InfoLabel = Instance.new("TextLabel")
-    InfoLabel.Size = UDim2.new(1, 0, 0, 0)
-    InfoLabel.AutomaticSize = Enum.AutomaticSize.Y
-    InfoLabel.BackgroundTransparency = 1
-    InfoLabel.Font = Enum.Font.Gotham
-    InfoLabel.TextSize = 12
-    InfoLabel.TextColor3 = Color3.fromRGB(180, 180, 190)
-    InfoLabel.TextWrapped = true
-    InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-    InfoLabel.Text = "• Tác giả: Death x Vỹ Hub\n• Mục đích: Giúp bạn né sét và tối ưu hóa việc canh cây trồng trong Greedy Garden.\n• Lưu ý: Tính năng dựa trên việc quét tín hiệu game, độ chính xác có thể dao động tùy thuộc vào lag."
-    InfoLabel.Parent = InfoTab
-
-    AddNotify("Thành công", "Death x Vỹ đã tải thành công!", 3)
-end
-
---------------------------------------------------------------------------------
--- KEY SYSTEM GUI (RAYFIELD STYLE)
---------------------------------------------------------------------------------
-local KeyGui = Instance.new("ScreenGui")
-KeyGui.Name = "RayfieldKeySystem"
-KeyGui.ResetOnSpawn = false
-KeyGui.IgnoreGuiInset = true
-KeyGui.DisplayOrder = 99999
-KeyGui.Parent = CoreGui
-
-local KeyFrame = Instance.new("Frame")
-KeyFrame.Name = "KeyFrame"
-KeyFrame.Size = UDim2.new(0, 360, 0, 190)
-KeyFrame.Position = UDim2.new(0.5, -180, 0.5, -95)
-KeyFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-KeyFrame.Parent = KeyGui
-
-local KCorner = Instance.new("UICorner")
-KCorner.CornerRadius = UDim.new(0, 8)
-KCorner.Parent = KeyFrame
-
-local KStroke = Instance.new("UIStroke")
-KStroke.Color = Color3.fromRGB(45, 45, 55)
-KStroke.Parent = KeyFrame
-MakeDraggable(KeyFrame)
-
-local KTitle = Instance.new("TextLabel")
-KTitle.Size = UDim2.new(1, -20, 0, 45)
-KTitle.Position = UDim2.new(0, 15, 0, 5)
-KTitle.BackgroundTransparency = 1
-KTitle.Font = Enum.Font.GothamBold
-KTitle.TextSize = 14
-KTitle.TextColor3 = Color3.fromRGB(240, 240, 245)
-KTitle.TextXAlignment = Enum.TextXAlignment.Left
-KTitle.Text = "Death x Vỹ Hub  <font color='#888899'>|  Key System</font>"
-KTitle.RichText = true
-KTitle.Parent = KeyFrame
-
-local TextBoxBg = Instance.new("Frame")
-TextBoxBg.Size = UDim2.new(1, -30, 0, 38)
-TextBoxBg.Position = UDim2.new(0, 15, 0, 55)
-TextBoxBg.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-TextBoxBg.Parent = KeyFrame
-
-local TBCorner = Instance.new("UICorner")
-TBCorner.CornerRadius = UDim.new(0, 6)
-TBCorner.Parent = TextBoxBg
-
-local TBStroke = Instance.new("UIStroke")
-TBStroke.Color = Color3.fromRGB(60, 60, 70)
-TBStroke.Parent = TextBoxBg
-
-local KeyInput = Instance.new("TextBox")
-KeyInput.Size = UDim2.new(1, -16, 1, 0)
-KeyInput.Position = UDim2.new(0, 8, 0, 0)
-KeyInput.BackgroundTransparency = 1
-KeyInput.Font = Enum.Font.GothamMedium
-KeyInput.TextSize = 12
-KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
-KeyInput.PlaceholderText = "Nhập key của bạn (death-vỹ)..."
-KeyInput.Text = ""
-KeyInput.Parent = TextBoxBg
-
-local SubmitBtn = Instance.new("TextButton")
-SubmitBtn.Size = UDim2.new(1, -30, 0, 38)
-SubmitBtn.Position = UDim2.new(0, 15, 0, 115)
-SubmitBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-SubmitBtn.AutoButtonColor = false
-SubmitBtn.Text = ""
-SubmitBtn.Parent = KeyFrame
-
-local SCorner = Instance.new("UICorner")
-SCorner.CornerRadius = UDim.new(0, 6)
-SCorner.Parent = SubmitBtn
-
-local SLabel = Instance.new("TextLabel")
-SLabel.Size = UDim2.new(1, 0, 1, 0)
-SLabel.BackgroundTransparency = 1
-SLabel.Font = Enum.Font.GothamBold
-SLabel.TextSize = 12
-SLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-SLabel.Text = "XÁC NHẬN KEY"
-SLabel.Parent = SubmitBtn
-
-SubmitBtn.MouseButton1Click:Connect(function()
-    if KeyInput.Text == CorrectKey then
-        AddNotify("Thành công", "Key chính xác! Đang mở giao diện...", 2)
-        KeyGui:Destroy()
-        LaunchMainScript()
-    else
-        AddNotify("Thất bại", "Key không đúng! (Key: death-vỹ)", 3)
+-- ==================== LOGIC CẢNH BÁO SÉT ====================
+Workspace.DescendantAdded:Connect(function(descendant)
+    if Settings.LightningWarning and not isWarningRunning then
+        local name = descendant.Name:lower()
+        if name:find("plant") or name:find("crop") or name:find("lightning") or name:find("thunder") or name:find("set") then
+            isWarningRunning = true
+            task.spawn(function()
+                Rayfield:Notify({Title = "⚠️ CẢNH BÁO", Content = "Nhịp 1", Duration = 1})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚠️ CẢNH BÁO", Content = "Nhịp 2", Duration = 1})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚠️ CẢNH BÁO", Content = "Nhịp 3", Duration = 1})
+                task.wait(1)
+                Rayfield:Notify({Title = "⚡ SÉT ĐẾN!", Content = "Thu hoạch ngay!", Duration = 2})
+                task.wait(3)
+                isWarningRunning = false
+            end)
+        end
     end
 end)
+
+Rayfield:Notify({Title = "DEATH x VỸ HUB", Content = "Khởi chạy thành công!", Duration = 3})
