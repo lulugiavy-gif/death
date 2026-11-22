@@ -1,0 +1,511 @@
+-- GIA VỸ HUB | Fix Lag + WalkSpeed + Circle Toggle + Hop + House ESP + Player ESP + NoClip + TP + Inf Jump
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local function getParent()
+	if type(gethui) == "function" then
+		local ok, h = pcall(gethui)
+		if ok and h then return h end
+	end
+	local okC, c = pcall(function() return CoreGui end)
+	if okC and c then return c end
+	return LocalPlayer:FindFirstChildOfClass("PlayerGui")
+end
+
+local parent = getParent()
+if not parent then return end
+
+for _, name in ipairs({ "GiaVyHub_TestGui", "GiaVyHub_MainGui", "GiaVyHub_BrainrotESP", "GiaVyHub_PlayerESP", "Darkwen_TestGui", "Darkwen_MainGui", "Darkwen_BrainrotESP", "Darkwen_PlayerESP" }) do
+	local old = parent:FindFirstChild(name)
+	if old then pcall(function() old:Destroy() end) end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "GiaVyHub_MainGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999999
+gui.Parent = parent
+
+local espFolder = Instance.new("Folder")
+espFolder.Name = "GiaVyHub_BrainrotESP"
+espFolder.Parent = parent
+
+local playerEspFolder = Instance.new("Folder")
+playerEspFolder.Name = "GiaVyHub_PlayerESP"
+playerEspFolder.Parent = parent
+
+local SpeedPresets = { 16, 24, 32, 45 }
+local speedIndex = 1
+
+local Flags = {
+	Esp = false,
+	PlayerEsp = false,
+	NoClip = false,
+	InfJump = false,
+	CustomSpeed = false,
+	WalkSpeed = SpeedPresets[1],
+	FixLag = false,
+}
+
+local Unloaded = false
+local Hopping = false
+local LastJump = 0
+local SavedCF = nil
+local activeEsp = {}
+local activePlayerEsp = {}
+local savedCollide = {}
+local savedParts = {}
+local savedEffects = {}
+local savedLighting = nil
+local lastScan = 0
+local lastPlayerScan = 0
+local lastSpeedCheck = 0
+
+local function myChar() return LocalPlayer.Character end
+local function myRoot()
+	local c = myChar()
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+local function myHum()
+	local c = myChar()
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+-- ===== NÚT HÌNH TRÒN GIA VỸ HUB =====
+local circleBtn = Instance.new("TextButton")
+circleBtn.Name = "CircleToggle"
+circleBtn.Size = UDim2.new(0, 48, 0, 48)
+circleBtn.Position = UDim2.new(0.04, 0, 0.35, 0)
+circleBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+circleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+circleBtn.TextStrokeTransparency = 0.25
+circleBtn.Font = Enum.Font.GothamBlack
+circleBtn.TextSize = 12
+circleBtn.Text = "GV"
+circleBtn.Active = true
+circleBtn.Draggable = true
+circleBtn.Parent = gui
+
+Instance.new("UICorner", circleBtn).CornerRadius = UDim.new(1, 0)
+
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(58, 175, 72)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(32, 38, 54)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(215, 62, 52)),
+})
+grad.Rotation = 35
+grad.Parent = circleBtn
+
+local circleStroke = Instance.new("UIStroke")
+circleStroke.Color = Color3.fromRGB(255, 235, 130)
+circleStroke.Thickness = 2
+circleStroke.Parent = circleBtn
+
+-- Bảng menu (mặc định ẩn, bấm hình tròn để hiện)
+local panel = Instance.new("Frame")
+panel.Name = "MenuPanel"
+panel.Size = UDim2.new(0, 182, 0, 336)
+panel.Position = UDim2.new(0.13, 0, 0.16, 0)
+panel.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+panel.BorderSizePixel = 0
+panel.Active = true
+panel.Draggable = true
+panel.Visible = false
+panel.Parent = gui
+
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 8)
+
+circleBtn.MouseButton1Click:Connect(function()
+	panel.Visible = not panel.Visible
+	circleStroke.Color = panel.Visible and Color3.fromRGB(120, 255, 175) or Color3.fromRGB(255, 235, 130)
+end)
+
+local statusLbl = Instance.new("TextLabel")
+statusLbl.Size = UDim2.new(1, -12, 0, 20)
+statusLbl.Position = UDim2.new(0, 6, 0, 4)
+statusLbl.BackgroundTransparency = 1
+statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+statusLbl.TextTruncate = Enum.TextTruncate.AtEnd
+statusLbl.TextColor3 = Color3.fromRGB(130, 255, 180)
+statusLbl.Font = Enum.Font.GothamBold
+statusLbl.TextSize = 11
+statusLbl.Text = "GIA VỸ HUB - Sẵn sàng"
+statusLbl.Parent = panel
+
+local function setStatus(t)
+	if statusLbl and statusLbl.Parent then
+		statusLbl.Text = tostring(t)
+	end
+end
+
+local function makeBtn(txt, y, col, fn)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1, -12, 0, 24)
+	b.Position = UDim2.new(0, 6, 0, y)
+	b.BackgroundColor3 = col
+	b.TextColor3 = Color3.fromRGB(255, 255, 255)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 10
+	b.TextTruncate = Enum.TextTruncate.AtEnd
+	b.Text = txt
+	b.Parent = panel
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
+	b.MouseButton1Click:Connect(function() fn(b) end)
+	return b
+end
+
+-- ===== FIX LAG (GIẢM HIỆU ỨNG / ĐỒ HỌA NẶNG) =====
+local function applyFixLag(enable)
+	if enable then
+		if not savedLighting then
+			savedLighting = {
+				GlobalShadows = Lighting.GlobalShadows,
+				Brightness = Lighting.Brightness,
+				EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
+				EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
+			}
+		end
+		pcall(function()
+			Lighting.GlobalShadows = false
+			Lighting.EnvironmentSpecularScale = 0
+			Lighting.EnvironmentDiffuseScale = 0
+		end)
+
+		for _, obj in ipairs(Lighting:GetDescendants()) do
+			if obj:IsA("PostEffect") or obj:IsA("Atmosphere") or obj:IsA("Sky") then
+				if savedEffects[obj] == nil and (obj:IsA("PostEffect") or obj:IsA("Atmosphere")) then
+					savedEffects[obj] = obj.Enabled
+				end
+				if obj:IsA("PostEffect") or obj:IsA("Atmosphere") then
+					pcall(function() obj.Enabled = false end)
+				end
+			end
+		end
+
+		local count = 0
+		for _, obj in ipairs(Workspace:GetDescendants()) do
+			if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+				if savedEffects[obj] == nil then
+					savedEffects[obj] = obj.Enabled
+				end
+				pcall(function() obj.Enabled = false end)
+			elseif obj:IsA("BasePart") and not savedParts[obj] then
+				savedParts[obj] = {
+					Material = obj.Material,
+					CastShadow = obj.CastShadow,
+					Reflectance = obj.Reflectance,
+				}
+				pcall(function()
+					obj.Material = Enum.Material.SmoothPlastic
+					obj.CastShadow = false
+					obj.Reflectance = 0
+				end)
+			end
+			count += 1
+			if count % 600 == 0 then
+				task.wait()
+			end
+		end
+	else
+		if savedLighting then
+			pcall(function()
+				Lighting.GlobalShadows = savedLighting.GlobalShadows
+				Lighting.Brightness = savedLighting.Brightness
+				Lighting.EnvironmentSpecularScale = savedLighting.EnvironmentSpecularScale
+				Lighting.EnvironmentDiffuseScale = savedLighting.EnvironmentDiffuseScale
+			end)
+			savedLighting = nil
+		end
+		for obj, enabled in pairs(savedEffects) do
+			if obj and obj.Parent then
+				pcall(function()
+					if typeof(enabled) == "boolean" then
+						obj.Enabled = enabled
+					end
+				end)
+			end
+			savedEffects[obj] = nil
+		end
+		for part, prop in pairs(savedParts) do
+			if part and part.Parent then
+				pcall(function()
+					part.Material = prop.Material
+					part.CastShadow = prop.CastShadow
+					part.Reflectance = prop.Reflectance
+				end)
+			end
+			savedParts[part] = nil
+		end
+	end
+end
+
+-- ===== TỐC ĐỘ CHẠY =====
+local function applySpeed()
+	local h = myHum()
+	if not h then return end
+	if Flags.CustomSpeed then
+		if h.WalkSpeed ~= Flags.WalkSpeed then
+			h.WalkSpeed = Flags.WalkSpeed
+		end
+	elseif h.WalkSpeed ~= 16 then
+		h.WalkSpeed = 16
+	end
+end
+
+-- ===== HOP SERVER =====
+local function hopServer(preferRich)
+	if Hopping then
+		setStatus("Đang hop...")
+		return
+	end
+	Hopping = true
+	setStatus("Đang tìm server...")
+	task.spawn(function()
+		local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", game.PlaceId)
+		local ok, raw = pcall(function() return game:HttpGet(url) end)
+		if not ok or type(raw) ~= "string" then
+			Hopping = false
+			setStatus("Chặn HttpGet: đổi server ở menu")
+			return
+		end
+		local decOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
+		if not decOk or type(data) ~= "table" or type(data.data) ~= "table" then
+			Hopping = false
+			setStatus("Lỗi dữ liệu server")
+			return
+		end
+		local list = {}
+		for _, s in ipairs(data.data) do
+			if type(s) == "table" and type(s.id) == "string" and s.id ~= game.JobId then
+				local p = tonumber(s.playing) or 0
+				local m = tonumber(s.maxPlayers) or 0
+				if m > 0 and p < m then
+					table.insert(list, { id = s.id, p = p, m = m })
+				end
+			end
+		end
+		if #list == 0 then
+			Hopping = false
+			setStatus("Không có server khác")
+			return
+		end
+		if preferRich then
+			table.sort(list, function(a, b) return a.p > b.p end)
+		else
+			local idx = math.random(1, #list)
+			list[1], list[idx] = list[idx], list[1]
+		end
+		setStatus(string.format("Hop %d/%d...", list[1].p, list[1].m))
+		local tpOk, err = pcall(function()
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, list[1].id, LocalPlayer)
+		end)
+		if not tpOk then
+			Hopping = false
+			setStatus("Hop lỗi: " .. tostring(err))
+		end
+	end)
+end
+
+-- ===== ESP BRAINROT (TRONG NHÀ, BỎ CHẠY NGOÀI, CHỮ NHỎ) =====
+local function fmtRate(n)
+	if type(n) ~= "number" or n ~= n then return nil end
+	local a = math.abs(n)
+	if a >= 1e12 then return string.format("%.2fT/s", n / 1e12)
+	elseif a >= 1e9 then return string.format("%.2fB/s", n / 1e9)
+	elseif a >= 1e6 then return string.format("%.2fM/s", n / 1e6)
+	elseif a >= 1e3 then return string.format("%.1fK/s", n / 1e3)
+	else return string.format("%.0f/s", n) end
+end
+
+local function parseRate(txt)
+	if type(txt) ~= "string" then return nil end
+	local num, suf = txt:gsub(",", ""):match("([%d%.]+)%s*([KMBTkmbt]?)%s*/%s*[sS]")
+	if not num then return nil end
+	local v = tonumber(num)
+	if not v then return nil end
+	local mult = ({ K = 1e3, M = 1e6, B = 1e9, T = 1e12 })[(suf or ""):upper()] or 1
+	return fmtRate(v * mult)
+end
+
+local function getPart(inst)
+	if inst:IsA("BasePart") then return inst end
+	if inst:IsA("Model") then
+		return inst.PrimaryPart or inst:FindFirstChild("HumanoidRootPart", true) or inst:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return nil
+end
+
+local function isInHouseNotRoaming(inst, part)
+	if not part then return false end
+	local hum = inst:FindFirstChildOfClass("Humanoid") or inst:FindFirstChildWhichIsA("Humanoid", true)
+	if hum and hum.WalkSpeed > 0 and (hum.MoveDirection.Magnitude > 0.05 or part.AssemblyLinearVelocity.Magnitude > 1.5) then
+		return false
+	end
+	if not hum and part.AssemblyLinearVelocity.Magnitude > 3 then
+		return false
+	end
+	local cur = inst.Parent
+	while cur and cur ~= Workspace do
+		local low = cur.Name:lower()
+		if low:find("base", 1, true) or low:find("house", 1, true) or low:find("home", 1, true) or low:find("plot", 1, true) or low:find("room", 1, true) or low:find("placed", 1, true) then
+			return true
+		end
+		if low:find("roam", 1, true) or low:find("wander", 1, true) or low:find("outside", 1, true) or low:find("wild", 1, true) then
+			return false
+		end
+		cur = cur.Parent
+	end
+	local ok, parts = pcall(function()
+		local op = OverlapParams.new()
+		op.FilterType = Enum.RaycastFilterType.Exclude
+		op.FilterDescendantsInstances = myChar() and { myChar(), inst } or { inst }
+		return Workspace:GetPartBoundsInRadius(part.Position, 10, op)
+	end)
+	if ok and type(parts) == "table" then
+		local hits = 0
+		for _, p in ipairs(parts) do
+			if p:IsA("BasePart") and not (p.Size.X > 150 and p.Size.Z > 150) then
+				hits += 1
+				if hits >= 2 then return true end
+			end
+		end
+	end
+	return false
+end
+
+local function getInfo(inst)
+	local name = inst.Name:gsub("_", " ")
+	local rate = nil
+	for k, v in pairs(inst:GetAttributes()) do
+		local kl = k:lower()
+		if type(v) == "string" and (kl:find("brainrot", 1, true) or kl:find("title", 1, true)) and v ~= "" then
+			name = v
+		elseif type(v) == "number" and (kl:find("rate", 1, true) or kl:find("income", 1, true) or kl:find("sec", 1, true)) then
+			rate = rate or fmtRate(v)
+		end
+	end
+	for _, d in ipairs(inst:GetDescendants()) do
+		local dl = d.Name:lower()
+		if d:IsA("StringValue") and d.Value ~= "" and (dl:find("brainrot", 1, true) or dl:find("title", 1, true)) then
+			name = d.Value
+		elseif (d:IsA("NumberValue") or d:IsA("IntValue")) and (dl:find("rate", 1, true) or dl:find("income", 1, true) or dl:find("sec", 1, true)) then
+			rate = rate or fmtRate(d.Value)
+		elseif d:IsA("TextLabel") or d:IsA("TextButton") then
+			rate = rate or parseRate(d.Text)
+		end
+	end
+	return rate and (name .. " | +" .. rate) or (name .. " | ?/s")
+end
+
+local function clearEsp()
+	for k, v in pairs(activeEsp) do
+		if v and v.gui then pcall(function() v.gui:Destroy() end) end
+		activeEsp[k] = nil
+	end
+end
+
+local function scanEsp(force)
+	if not Flags.Esp then
+		if next(activeEsp) then clearEsp() end
+		return
+	end
+	if not force and os.clock() - lastScan < 0.8 then return end
+	lastScan = os.clock()
+
+	local char = myChar()
+	local seen = {}
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if (obj:IsA("Model") or obj:IsA("BasePart")) and not (char and (obj == char or obj:IsDescendantOf(char))) then
+			local n = obj.Name:lower()
+			local isBr = n:find("brainrot", 1, true)
+			if not isBr then
+				for _, d in ipairs(obj:GetDescendants()) do
+					if (d:IsA("TextLabel") or d:IsA("TextButton")) and (d.Text:lower():find("brainrot", 1, true) or parseRate(d.Text) ~= nil) then
+						isBr = true
+						break
+					end
+				end
+			end
+			if isBr then
+				local part = getPart(obj)
+				if isInHouseNotRoaming(obj, part) then
+					seen[obj] = true
+					if not activeEsp[obj] then
+						local bb = Instance.new("BillboardGui")
+						bb.Adornee = part
+						bb.AlwaysOnTop = true
+						bb.MaxDistance = 135
+						bb.Size = UDim2.new(0, 114, 0, 14)
+						bb.StudsOffset = Vector3.new(0, 2.2, 0)
+						bb.Parent = espFolder
+
+						local lbl = Instance.new("TextLabel")
+						lbl.Size = UDim2.new(1, 0, 1, 0)
+						lbl.BackgroundColor3 = Color3.fromRGB(15, 18, 24)
+						lbl.BackgroundTransparency = 0.35
+						lbl.TextColor3 = Color3.fromRGB(120, 255, 175)
+						lbl.Font = Enum.Font.GothamBold
+						lbl.TextSize = 10
+						lbl.TextScaled = false
+						lbl.TextTruncate = Enum.TextTruncate.AtEnd
+						lbl.Text = getInfo(obj)
+						lbl.Parent = bb
+						Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 4)
+
+						activeEsp[obj] = { gui = bb, lbl = lbl }
+					else
+						activeEsp[obj].lbl.Text = getInfo(obj)
+					end
+				end
+			end
+		end
+	end
+	for k, v in pairs(activeEsp) do
+		if not seen[k] or not k.Parent then
+			if v and v.gui then pcall(function() v.gui:Destroy() end) end
+			activeEsp[k] = nil
+		end
+	end
+end
+
+-- ===== ESP TÊN NGƯỜI CHƠI (CHỮ NHỎ) =====
+local function clearPlayerEsp()
+	for plr, v in pairs(activePlayerEsp) do
+		if v and v.gui then pcall(function() v.gui:Destroy() end) end
+		activePlayerEsp[plr] = nil
+	end
+end
+
+local function scanPlayerEsp(force)
+	if not Flags.PlayerEsp then
+		if next(activePlayerEsp) then clearPlayerEsp() end
+		return
+	end
+	if not force and os.clock() - lastPlayerScan < 0.6 then return end
+	lastPlayerScan = os.clock()
+
+	local myR = myRoot()
+	local seen = {}
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local c = plr.Character
+			local anchor = c:FindFirstChild("Head") or c:FindFirstChild("HumanoidRootPart")
+			if anchor and anchor:IsA("BasePart") then
+				seen[plr] = true
+				local distText = ""
+				if myR then
+					distText = string.format(" [%.0fm]", (anchor.Position - myR.Position).Magnitude)
+				end
+				local labelText = plr.DisplayName .. distText
+
+				if not activePlayerEsp[plr
